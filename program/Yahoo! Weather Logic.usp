@@ -28,7 +28,6 @@ Authors:
 Style:
   - SIMPL+ Help keywords and indentation
   - Two-space soft tabs
-  - Crescendo 1 naming
 #HELP_END
 
 
@@ -244,7 +243,7 @@ CHANGE in_TCP_Status
   {
     CLEARBUFFER(in_TCP_RX$);
     
-    MAKESTRING(out_TCP_TX$, "GET /forecastrss?p=%s&u=%s HTTP/1.1\nHost: xml.weather.yahoo.com\n\n", zip_code, param_Units); // The feed does not provide a Last-Modified header field and seems to ignore the If-Modified-Since header field.
+    MAKESTRING(out_TCP_TX$, "GET /forecastrss?p=%s&u=%s HTTP/1.1\nHost: weather.yahooapis.com\n\n", zip_code, param_Units); // The feed does not provide a Last-Modified header field and seems to ignore the If-Modified-Since header field.
   }
   ELSE
   {
