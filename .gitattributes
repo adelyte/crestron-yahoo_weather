@@ -1,2 +1,3 @@
 * -text
 *.usp text eol=crlf
+*.smw binary
