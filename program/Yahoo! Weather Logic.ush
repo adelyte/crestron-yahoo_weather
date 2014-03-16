@@ -11,15 +11,10 @@
 [END]
 [BEGIN]
   ObjTp=Hd
-  Cmn1=XML Parsing Library\\Crescendo 1.0 Public\\\\Released by Adelyte||1
-  Cmn2=Company into the public domain under the Creative Commons Zero license.
-  Cmn3=\\\\Authors:\\  - David Massey <david@adelyte.com>\\\\Style:\\||2
-  Cmn4=- SIMPL+ Help keywords and indentation\\  - Two-space soft tabs\\
-  Cmn5=||2- Crescendo 1 naming\\\\Yahoo! Weather\\Crescendo 1.0 Public\\
-  Cmn6=\\Released by Adelyte Company into the public domain under the Creative||1
-  Cmn7=Commons Zero license.\\\\Authors:\\  - David Massey (lead) <david@adelyte.
-  Cmn8=com>\\  - Chris Massey <chris@adelyte.com>\\\\Style:\\  - SIMPL+||1
-  Cmn9=Help keywords and indentation\\  - Two-space soft tabs
+  Cmn1=Yahoo! Weather\\\\Released by Adelyte Company into the public domain||1
+  Cmn2=under the Creative Commons Zero license.\\\\Authors:\\    - David||1
+  Cmn3=Massey (lead) <david@adelyte.com>\\    - Chris Massey <chris@adelyte.
+  Cmn4=com>
 [END]
 [BEGIN]
   ObjTp=Symbol
@@ -328,7 +323,6 @@
   SymJam=NonExclusive
   FileName=Yahoo! Weather Logic.ush
   SIMPLPlusModuleEncoding=0
-  Usl1=lib xml.usl
 [END]
 [BEGIN]
   ObjTp=Dp

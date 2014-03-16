@@ -1,7 +1,7 @@
 /*
  *
-  Adelyte Company
-  www.adelyte.com
+    Adelyte Company
+    www.adelyte.com
  *
  */
 
@@ -11,23 +11,15 @@
 #DEFAULT_VOLATILE
 #ENABLE_DYNAMIC // Dynamic arrays are NOT used, but supposedly this directive improves memory allocation.
 
-#USER_LIBRARY "lib xml"
-
-
 // Help
 #HELP_BEGIN
 Yahoo! Weather
-Crescendo 1.0 Public
 
 Released by Adelyte Company into the public domain under the Creative Commons Zero license.
 
 Authors:
-  - David Massey (lead) <david@adelyte.com>
-  - Chris Massey <chris@adelyte.com>
-
-Style:
-  - SIMPL+ Help keywords and indentation
-  - Two-space soft tabs
+    - David Massey (lead) <david@adelyte.com>
+    - Chris Massey <chris@adelyte.com>
 #HELP_END
 
 
@@ -48,7 +40,7 @@ Style:
 
 /*
  *
-  Inputs and Outputs
+    Inputs and Outputs
  *
  */
 
@@ -111,29 +103,217 @@ STRING_OUTPUT out_Last_Build[2, 2];
 STRING_PARAMETER param_Local_ZIP_Code[#ZIP_CODE_LEN];
 #BEGIN_PARAMETER_PROPERTIES param_Local_ZIP_Code
 
-  propSHORTDESCRIPTION = "ZIP Code for local weather report.";
+    propSHORTDESCRIPTION = "ZIP Code for local weather report.";
 
 #END_PARAMETER_PROPERTIES
 
 STRING_PARAMETER param_Units[1];
 #BEGIN_PARAMETER_PROPERTIES param_Units
 
-  propSHORTDESCRIPTION = "Temperature units as Fahrenheit or Celsius.";
+    propSHORTDESCRIPTION = "Temperature units as Fahrenheit or Celsius.";
 
 #END_PARAMETER_PROPERTIES
 
 INTEGER_PARAMETER param_Hold_Time;
 #BEGIN_PARAMETER_PROPERTIES param_Hold_Time
 
-  propVALIDUNITS  = unitDecimal|unitTime;
-  propDEFAULTUNIT = unitDecimal;
-  propSHORTDESCRIPTION = "Time to wait to set preset in hundredths of a second.";
+    propVALIDUNITS  = unitDecimal|unitTime;
+    propDEFAULTUNIT = unitDecimal;
+    propSHORTDESCRIPTION = "Time to wait to set preset in hundredths of a second.";
 
 #END_PARAMETER_PROPERTIES
 
 /*
  *
-  Functions
+    Lib XML
+ *
+ */
+ 
+INTEGER_FUNCTION XMLRootEndTagFound(STRING xml_feed)
+{
+    INTEGER start_pos, end_pos;
+    STRING  root_element[48];
+
+    IF(FIND("<?", xml_feed))
+        start_pos = FIND("<", xml_feed, 32) + 1;
+    ELSE
+        start_pos = FIND("<", xml_feed) + 1;
+
+    end_pos = MIN(FIND(">", xml_feed, start_pos) - 1, FIND(" ", xml_feed, start_pos) - 1);
+
+    IF(end_pos - start_pos < LEN(xml_feed))
+        root_element = MID(xml_feed, start_pos, end_pos - start_pos + 1);
+
+    TRACE("WaitForXMLRootClose()\n");
+    TRACE("    root_element = '%s'", root_element);
+
+    MAKESTRING(root_element, "</%s>", root_element);
+
+    RETURN(!!FIND(root_element, xml_feed));
+}
+
+FUNCTION XMLFindElement(STRING element_names[], BYREF INTEGER breadth, STRING xml_feed, BYREF INTEGER start_pos, BYREF INTEGER end_pos)
+{
+    INTEGER depth, deepest_element, find_pos, name_len;
+    STRING element_tag[48];
+
+    end_pos = LEN(xml_feed);
+
+    // Catch uninitialized data errors.
+    IF(start_pos > end_pos || start_pos = 0)
+        start_pos = 1;
+
+    IF(breadth > end_pos)
+        breadth = 0;
+
+    // Find element.
+    FOR(deepest_element = 0 TO GETNUMARRAYROWS(element_names))
+    {
+        IF(LEN(element_names[deepest_element]) = 0)
+        {
+            BREAK;
+        }
+    }
+
+    deepest_element = deepest_element - 1;
+
+    FOR(depth = 0 TO deepest_element)
+    {
+        MAKESTRING(element_tag, "<%s", element_names[depth]);
+        find_pos = FIND(element_tag, xml_feed, start_pos);
+        name_len = LEN(element_names[depth]);
+
+        IF(find_pos > end_pos || find_pos = 0)
+        {
+            breadth = 0;
+            start_pos = 0;
+            end_pos = 0;
+            RETURN;
+        }
+
+        IF(MID(xml_feed, find_pos + name_len + 1, 1) = ">")
+        {
+            MAKESTRING(element_tag, "</%s>", element_names[depth]);
+        }
+        ELSE IF(MID(xml_feed, find_pos + name_len + 1, 1) = " ")
+        {
+            element_tag = "/>";
+        }
+        ELSE
+        {
+            element_tag = "";
+            start_pos = 0;
+            end_pos = 0;
+            breadth = 0;
+            RETURN;
+        }
+
+        start_pos = find_pos;
+        end_pos = FIND(element_tag, xml_feed, start_pos);
+    }
+
+    IF(breadth > 1)
+    {
+        depth = deepest_element;
+        MAKESTRING(element_tag, "<%s", element_names[depth]);
+
+        FOR(breadth = breadth - 1 TO 1 STEP -1)
+            find_pos = FIND(element_tag, xml_feed, find_pos + 1);
+
+        MAKESTRING(element_tag, "</%s>", element_names[depth]);
+
+        start_pos = find_pos;
+        find_pos = FIND(element_tag, xml_feed, start_pos);
+        end_pos  = FIND("/>", xml_feed, start_pos) - 1;
+        IF(find_pos > 0 && end_pos > 0) {
+                end_pos = MIN(find_pos, end_pos) - 1;
+        }
+        ELSE IF(find_pos > 0 && end_pos = 0) {
+                end_pos = find_pos - 1;
+        }
+        ELSE {
+                end_pos = end_pos - 1;
+        }
+    }
+
+    ELSE IF(breadth = 0)
+    {
+        depth = depth - 1;
+        MAKESTRING(element_tag, "<%s", element_names[depth]);
+
+        DO
+        {
+            find_pos = FIND(element_tag, xml_feed, find_pos + 1);
+            breadth = breadth + 1;
+        }
+        UNTIL(find_pos = 0);
+    }
+}
+
+STRING_FUNCTION XMLGetAttributeData(STRING attribute_name, STRING attributes)
+{
+    INTEGER find_pos, start_pos, end_pos;
+
+    find_pos = FIND(attribute_name, attributes);
+    start_pos = FIND("=\"", attributes, find_pos) + 2;
+
+    end_pos = FIND("\"", attributes, start_pos);
+
+    RETURN(MID(attributes, start_pos, end_pos - start_pos));
+}
+
+FUNCTION XMLGetElementData(STRING element_names[], INTEGER breadth, STRING xml_feed, BYREF STRING content, BYREF STRING attributes)
+{
+    INTEGER depth, element_start, element_end, name_len, start_pos, end_pos;
+    STRING  element_tag[48];
+
+    element_start = 0;
+    element_end = 0;
+
+    XMLFindElement(element_names, breadth, xml_feed, element_start, element_end);
+
+    IF(element_end = 0)
+        RETURN;
+
+    // Parse element attributes.
+    FOR(depth = 0 TO GETNUMARRAYROWS(element_names))
+    {
+        IF(LEN(element_names[depth]) = 0)
+        {
+            BREAK;
+        }
+    }
+
+    depth = depth - 1;
+
+    name_len = LEN(element_names[depth]);
+
+    end_pos = FIND(">", xml_feed, element_start + name_len);
+
+    IF(end_pos > element_start + 1 + name_len)
+    {
+        start_pos = element_start + 1 + name_len + 1;
+
+        IF(MID(xml_feed, end_pos - 1, 1) = "/")
+        {
+            end_pos = end_pos - 1;
+            element_end = end_pos + 1;
+        }
+
+        attributes = MID(xml_feed, start_pos, end_pos - start_pos);
+    }
+
+    // Parse element content.
+    start_pos = end_pos + 1;
+    end_pos = element_end;
+
+    content = MID(xml_feed, start_pos, end_pos - start_pos);
+    TRACE("XMLGetElementData() content: '%s'", content);
+}
+
+/*
+ *
+    Functions
  *
  */
 
@@ -146,34 +326,34 @@ STRING  LastModified[32];
 // String Parsing
 SIGNED_INTEGER_FUNCTION ATOSINew(STRING ascii_string) // Converts a STRING to a SIGNED_INTEGER.
 {
-  SIGNED_INTEGER int, pos;
-  
-  int = ATOI(ascii_string);
-  pos = FIND(ITOA(int), ascii_string);
-  
-  IF(pos > 1)
-  {
-    IF(BYTE(ascii_string, pos - 1) = 0x2D) // 0x2D = "-"
+    SIGNED_INTEGER int, pos;
+    
+    int = ATOI(ascii_string);
+    pos = FIND(ITOA(int), ascii_string);
+    
+    IF(pos > 1)
     {
-      int = -1 * int;
+        IF(BYTE(ascii_string, pos - 1) = 0x2D) // 0x2D = "-"
+        {
+            int = -1 * int;
+        }
     }
-  }
-  
-  RETURN(int);
+    
+    RETURN(int);
 }
 
 INTEGER_FUNCTION TIMETOI(STRING tod)
 {
-  INTEGER minutes;
-  
-  minutes = ATOI(LEFT(tod, 2));
-  minutes = minutes * 60;
-  minutes = minutes + ATOI(RIGHT(tod, LEN(tod) - 2));
-  
-  IF(RIGHT(tod, 2) = "pm")
-    minutes = minutes + 720;
-  
-  RETURN(minutes);
+    INTEGER minutes;
+    
+    minutes = ATOI(LEFT(tod, 2));
+    minutes = minutes * 60;
+    minutes = minutes + ATOI(RIGHT(tod, LEN(tod) - 2));
+    
+    IF(RIGHT(tod, 2) = "pm")
+        minutes = minutes + 720;
+    
+    RETURN(minutes);
 }
 
 
@@ -182,73 +362,73 @@ INTEGER ConnectWaitActive;
 
 FUNCTION ConnectToServer(INTEGER wait_time)
 {
-  IF(wait_time > 0)
-  {
-    IF(ConnectWaitActive = #NO)
+    IF(wait_time > 0)
     {
-      WAIT(wait_time, CONNECT_WAIT)
-      {
-        IF(out_TCP_Connect = 1)
+        IF(ConnectWaitActive = #NO)
         {
-          out_TCP_Connect = 0;
-          PROCESSLOGIC();
+            WAIT(wait_time, CONNECT_WAIT)
+            {
+                IF(out_TCP_Connect = 1)
+                {
+                    out_TCP_Connect = 0;
+                    PROCESSLOGIC();
+                }
+                
+                out_TCP_Connect = 1;
+            }
         }
-        
-        out_TCP_Connect = 1;
-      }
+        ELSE
+        {
+            RETIMEWAIT(wait_time, CONNECT_WAIT);
+        }
     }
     ELSE
     {
-      RETIMEWAIT(wait_time, CONNECT_WAIT);
+        IF(out_TCP_Connect = 1)
+        {
+            out_TCP_Connect = 0;
+            PROCESSLOGIC();
+        }
+        
+        out_TCP_Connect = 1;
     }
-  }
-  ELSE
-  {
-    IF(out_TCP_Connect = 1)
-    {
-      out_TCP_Connect = 0;
-      PROCESSLOGIC();
-    }
-    
-    out_TCP_Connect = 1;
-  }
 }
 
 CHANGE in_TCP_Status
 {
-  STRING zip_code[#ZIP_CODE_LEN];
-  
-  IF(ActiveZipCode = #LOCAL)
-    zip_code = param_Local_ZIP_Code;
-  ELSE
-    zip_code = DynamicZipCode;
-  
-  IF(in_TCP_Status = 3) // TCP connection failed, wait one minute and retry.
-  {
-    TRACE("ERROR in %s 'weather logic.usp': TCP Connection Failed", GETSYMBOLINSTANCENAME());
+    STRING zip_code[#ZIP_CODE_LEN];
     
-    ConnectToServer(6000);
-  }
-  ELSE IF((in_TCP_Status = 4) || (in_TCP_Status = 5)) // Connection broken locally or remotely, wait until next update request.
-  {
-    out_TCP_Connect = 0;
-  }
-  ELSE IF(in_TCP_Status = 7) // DNS lookup failed, wait one minute and retry.
-  {
-    TRACE("ERROR in %s 'weather logic.usp': DNS Lookup Failed", GETSYMBOLINSTANCENAME());
+    IF(ActiveZipCode = #LOCAL)
+        zip_code = param_Local_ZIP_Code;
+    ELSE
+        zip_code = DynamicZipCode;
     
-    ConnectToServer(6000);
-  }
-  ELSE IF(in_TCP_Status = 2) // TCP connection succeeded, request weather data.
-  {
-    CLEARBUFFER(in_TCP_RX$);
-    
-    MAKESTRING(out_TCP_TX$, "GET /forecastrss?p=%s&u=%s HTTP/1.1\nHost: weather.yahooapis.com\n\n", zip_code, param_Units); // The feed does not provide a Last-Modified header field and seems to ignore the If-Modified-Since header field.
-  }
-  ELSE
-  {
-    // Pass
-  }
+    IF(in_TCP_Status = 3) // TCP connection failed, wait one minute and retry.
+    {
+        TRACE("ERROR in %s 'weather logic.usp': TCP Connection Failed", GETSYMBOLINSTANCENAME());
+        
+        ConnectToServer(6000);
+    }
+    ELSE IF((in_TCP_Status = 4) || (in_TCP_Status = 5)) // Connection broken locally or remotely, wait until next update request.
+    {
+        out_TCP_Connect = 0;
+    }
+    ELSE IF(in_TCP_Status = 7) // DNS lookup failed, wait one minute and retry.
+    {
+        TRACE("ERROR in %s 'weather logic.usp': DNS Lookup Failed", GETSYMBOLINSTANCENAME());
+        
+        ConnectToServer(6000);
+    }
+    ELSE IF(in_TCP_Status = 2) // TCP connection succeeded, request weather data.
+    {
+        CLEARBUFFER(in_TCP_RX$);
+        
+        MAKESTRING(out_TCP_TX$, "GET /forecastrss?p=%s&u=%s HTTP/1.1\nHost: weather.yahooapis.com\n\n", zip_code, param_Units); // The feed does not provide a Last-Modified header field and seems to ignore the If-Modified-Since header field.
+    }
+    ELSE
+    {
+        // Pass
+    }
 }
 
 
@@ -257,40 +437,40 @@ STRING Numpad[#ZIP_CODE_LEN];
 
 PUSH in_Numpad
 {
-  INTEGER numpad_index;
+    INTEGER numpad_index;
 
-  numpad_index = GETLASTMODIFIEDARRAYINDEX() - 1; // Map in_Numpad[1..10] to 0..9
+    numpad_index = GETLASTMODIFIEDARRAYINDEX() - 1; // Map in_Numpad[1..10] to 0..9
 
-  IF(LEN(Numpad) < #ZIP_CODE_LEN)
-    MAKESTRING(Numpad, "%s%u", Numpad, numpad_index);
-  ELSE
-    TERMINATEEVENT;
+    IF(LEN(Numpad) < #ZIP_CODE_LEN)
+        MAKESTRING(Numpad, "%s%u", Numpad, numpad_index);
+    ELSE
+        TERMINATEEVENT;
 
-  out_Numpad = Numpad;
+    out_Numpad = Numpad;
 }
 
 PUSH in_Enter
 {
-  DynamicZipCode = Numpad;
-  ActiveZipCode = #DYNAMIC;
-  
-  ConnectToServer(0);
+    DynamicZipCode = Numpad;
+    ActiveZipCode = #DYNAMIC;
+    
+    ConnectToServer(0);
 }
 
 PUSH in_Enter, in_Clear
 {
-  Numpad = "";
-  out_Numpad = Numpad;
+    Numpad = "";
+    out_Numpad = Numpad;
 }
 
 PUSH in_Backspace
 {
-  IF(LEN(Numpad) > 1)
-    MAKESTRING(Numpad, "%s", LEFT(Numpad, LEN(Numpad) - 1));
-  ELSE
-    Numpad = "";
-  
-  out_Numpad = Numpad;
+    IF(LEN(Numpad) > 1)
+        MAKESTRING(Numpad, "%s", LEFT(Numpad, LEN(Numpad) - 1));
+    ELSE
+        Numpad = "";
+    
+    out_Numpad = Numpad;
 }
 
 // Presets
@@ -300,47 +480,47 @@ INTEGER PresetWaitActive, PresetIndex;
 
 PUSH in_Preset
 {
-  PresetIndex = GETLASTMODIFIEDARRAYINDEX();
-  
-  IF(PresetWaitActive = #NO)
-  {
-    PresetWaitActive = #YES;
+    PresetIndex = GETLASTMODIFIEDARRAYINDEX();
     
-    WAIT(param_Hold_Time, PRESET_WAIT)
+    IF(PresetWaitActive = #NO)
     {
-      PresetZipCodes[PresetIndex] = DynamicZipCode;
-      out_Preset_ZIP_Code[PresetIndex] = PresetZipCodes[PresetIndex];
-      
-      PresetLocations[PresetIndex] = Locations[#DYNAMIC];
-      out_Preset_Location[PresetIndex] = PresetLocations[PresetIndex];
-      
-      PresetWaitActive = #NO;
+        PresetWaitActive = #YES;
+        
+        WAIT(param_Hold_Time, PRESET_WAIT)
+        {
+            PresetZipCodes[PresetIndex] = DynamicZipCode;
+            out_Preset_ZIP_Code[PresetIndex] = PresetZipCodes[PresetIndex];
+            
+            PresetLocations[PresetIndex] = Locations[#DYNAMIC];
+            out_Preset_Location[PresetIndex] = PresetLocations[PresetIndex];
+            
+            PresetWaitActive = #NO;
+        }
     }
-  }
-  ELSE
-  {
-    TRACE("ERROR in %s 'weather logic.usp': Multiple Simultaneous Presets", GETSYMBOLINSTANCENAME());
-  }
+    ELSE
+    {
+        TRACE("ERROR in %s 'weather logic.usp': Multiple Simultaneous Presets", GETSYMBOLINSTANCENAME());
+    }
 }
 
 RELEASE in_Preset
 {
-  PresetIndex = GETLASTMODIFIEDARRAYINDEX();
-  
-  IF(PresetWaitActive = #YES)
-  {
-    CANCELWAIT(PRESET_WAIT);
-    PresetWaitActive = #No;
+    PresetIndex = GETLASTMODIFIEDARRAYINDEX();
     
-    DynamicZipCode = PresetZipCodes[PresetIndex];
-    ActiveZipCode  = #DYNAMIC;
-    
-    ConnectToServer(0);
-  }
-  ELSE
-  {
-    // Pass
-  }
+    IF(PresetWaitActive = #YES)
+    {
+        CANCELWAIT(PRESET_WAIT);
+        PresetWaitActive = #No;
+        
+        DynamicZipCode = PresetZipCodes[PresetIndex];
+        ActiveZipCode  = #DYNAMIC;
+        
+        ConnectToServer(0);
+    }
+    ELSE
+    {
+        // Pass
+    }
 }
 
 
@@ -349,41 +529,41 @@ RELEASE in_Preset
 
 PUSH in_Update
 {
-  ActiveZipCode = #LOCAL;
-  
-  ConnectToServer(0);
+    ActiveZipCode = #LOCAL;
+    
+    ConnectToServer(0);
 }
 
 CHANGE in_Time
 {
-  INTEGER minutes;
-  
-  minutes = in_Time MOD 15;
-  
-  IF(minutes = 0)
-  {
-    ActiveZipCode = #LOCAL;
+    INTEGER minutes;
     
-    ConnectToServer(0);
-  }
+    minutes = in_Time MOD 15;
+    
+    IF(minutes = 0)
+    {
+        ActiveZipCode = #LOCAL;
+        
+        ConnectToServer(0);
+    }
 }
 
 CHANGE in_Temperature_Sensor
 {
-  STRING units[2];
-  
-  IF(in_Temperature_Sensor_Enable = #YES)
-  {
-	  IF(param_Units = "f")
-	    MAKESTRING(units, "%cF", 0xB0);
-	  ELSE IF(param_Units = "c")
-	    MAKESTRING(units, "%cC", 0xB0);
-	  ELSE
-	    units = "";
+    STRING units[2];
     
-    out_Current_Temp[#LOCAL] = in_Temperature_Sensor;
-    MAKESTRING(out_Current_Temp_Text[#LOCAL], "%d%s", in_Temperature_Sensor, units);
-  }
+    IF(in_Temperature_Sensor_Enable = #YES)
+    {
+        IF(param_Units = "f")
+            MAKESTRING(units, "%cF", 0xB0);
+        ELSE IF(param_Units = "c")
+            MAKESTRING(units, "%cC", 0xB0);
+        ELSE
+            units = "";
+        
+        out_Current_Temp[#LOCAL] = in_Temperature_Sensor;
+        MAKESTRING(out_Current_Temp_Text[#LOCAL], "%d%s", in_Temperature_Sensor, units);
+    }
 }
 
 
@@ -391,433 +571,433 @@ CHANGE in_Temperature_Sensor
 
 INTEGER_FUNCTION GetImage(INTEGER condition)
 {
-  SWITCH(condition)
-  {
-    CASE(0): // Tornado.
-      RETURN(24);
-    CASE(1): // Tropical storm.
-      RETURN(17);
-    CASE(2): // Hurricane.
-      RETURN(17);
-    CASE(3): // Severe thunderstorms.
-      RETURN(17);
-    CASE(4): // Thunderstorms.
-      RETURN(17);
-    CASE(5): // Mixed rain and snow.
-      RETURN(22);
-    CASE(6): // Mixed rain and sleet.
-      RETURN(22);
-    CASE(7): // Mixed snow and sleet.
-      RETURN(22);
-    CASE(8): // Freezing drizzle.
-      RETURN(22);
-    CASE(9): // Drizzle.
-      RETURN(15);
-    CASE(10): // Freezy rain.
-      RETURN(22);
-    CASE(11): // Showers.
-      RETURN(16);
-    CASE(12): // Showers.
-      RETURN(16);
-    CASE(13): // Snow flurries.
-      RETURN(19);
-    CASE(14): // Light snow showers.
-      RETURN(19);
-    CASE(15): // Blowing snow.
-      RETURN(20);
-    CASE(16): // Snow.
-      RETURN(20);
-    CASE(17): // Hail.
-      RETURN(23);
-    CASE(18): // Sleet.
-      RETURN(22);
-    CASE(19): // Dust.
-      RETURN(25);
-    CASE(20): // Foggy.
-      RETURN(25);
-    CASE(21): // Haze.
-      RETURN(25);
-    CASE(22): // Smokey.
-      RETURN(25);
-    CASE(23): // Blustery.
-      RETURN(24);
-    CASE(24): // Windy.
-      RETURN(24);
-    CASE(25): // Cold.
-      RETURN(21);
-    CASE(26): // Cloudy.
-      RETURN(14);
-    CASE(27): // Mostly cloudy (night).
-      RETURN(10);
-    CASE(28): // Mostly cloudy (day).
-      RETURN(4);
-    CASE(29): // Partly cloudy (night).
-      RETURN(9);
-    CASE(30): // Partly cloudy (day).
-      RETURN(3);
-    CASE(31): // Clear (night).
-      RETURN(7);
-    CASE(32): // Sunny
-      RETURN(1);
-    CASE(33): // Fair (night).
-      RETURN(8);
-    CASE(34): // Fair (day).
-      RETURN(2);
-    CASE(35): // Mixed rain and hail.
-      RETURN(23);
-    CASE(36): // Hot.
-      RETURN(1);
-    CASE(37): // Isolated thunderstorms.
-      RETURN(17);
-    CASE(38): // Scattered thunderstorms.
-      RETURN(17);
-    CASE(39): // Scattered thunderstorms.
-      RETURN(17);
-    CASE(40): // Scattered showers.
-      RETURN(16);
-    CASE(41): // Heavy snow.
-      RETURN(20);
-    CASE(42): // Scattered snow showers.
-      RETURN(19);
-    CASE(43): // Heavy snow.
-      RETURN(20);
-    CASE(44): // Partly cloudy.
-      RETURN(14);
-    CASE(45): // Thundershowers.
-      RETURN(18);
-    CASE(46): // Snow showers.
-      RETURN(20);
-    CASE(47): // Isolated thundershowers.
-      RETURN(18);
-    DEFAULT:
-      RETURN(0);
-  }
+    SWITCH(condition)
+    {
+        CASE(0): // Tornado.
+            RETURN(24);
+        CASE(1): // Tropical storm.
+            RETURN(17);
+        CASE(2): // Hurricane.
+            RETURN(17);
+        CASE(3): // Severe thunderstorms.
+            RETURN(17);
+        CASE(4): // Thunderstorms.
+            RETURN(17);
+        CASE(5): // Mixed rain and snow.
+            RETURN(22);
+        CASE(6): // Mixed rain and sleet.
+            RETURN(22);
+        CASE(7): // Mixed snow and sleet.
+            RETURN(22);
+        CASE(8): // Freezing drizzle.
+            RETURN(22);
+        CASE(9): // Drizzle.
+            RETURN(15);
+        CASE(10): // Freezy rain.
+            RETURN(22);
+        CASE(11): // Showers.
+            RETURN(16);
+        CASE(12): // Showers.
+            RETURN(16);
+        CASE(13): // Snow flurries.
+            RETURN(19);
+        CASE(14): // Light snow showers.
+            RETURN(19);
+        CASE(15): // Blowing snow.
+            RETURN(20);
+        CASE(16): // Snow.
+            RETURN(20);
+        CASE(17): // Hail.
+            RETURN(23);
+        CASE(18): // Sleet.
+            RETURN(22);
+        CASE(19): // Dust.
+            RETURN(25);
+        CASE(20): // Foggy.
+            RETURN(25);
+        CASE(21): // Haze.
+            RETURN(25);
+        CASE(22): // Smokey.
+            RETURN(25);
+        CASE(23): // Blustery.
+            RETURN(24);
+        CASE(24): // Windy.
+            RETURN(24);
+        CASE(25): // Cold.
+            RETURN(21);
+        CASE(26): // Cloudy.
+            RETURN(14);
+        CASE(27): // Mostly cloudy (night).
+            RETURN(10);
+        CASE(28): // Mostly cloudy (day).
+            RETURN(4);
+        CASE(29): // Partly cloudy (night).
+            RETURN(9);
+        CASE(30): // Partly cloudy (day).
+            RETURN(3);
+        CASE(31): // Clear (night).
+            RETURN(7);
+        CASE(32): // Sunny
+            RETURN(1);
+        CASE(33): // Fair (night).
+            RETURN(8);
+        CASE(34): // Fair (day).
+            RETURN(2);
+        CASE(35): // Mixed rain and hail.
+            RETURN(23);
+        CASE(36): // Hot.
+            RETURN(1);
+        CASE(37): // Isolated thunderstorms.
+            RETURN(17);
+        CASE(38): // Scattered thunderstorms.
+            RETURN(17);
+        CASE(39): // Scattered thunderstorms.
+            RETURN(17);
+        CASE(40): // Scattered showers.
+            RETURN(16);
+        CASE(41): // Heavy snow.
+            RETURN(20);
+        CASE(42): // Scattered snow showers.
+            RETURN(19);
+        CASE(43): // Heavy snow.
+            RETURN(20);
+        CASE(44): // Partly cloudy.
+            RETURN(14);
+        CASE(45): // Thundershowers.
+            RETURN(18);
+        CASE(46): // Snow showers.
+            RETURN(20);
+        CASE(47): // Isolated thundershowers.
+            RETURN(18);
+        DEFAULT:
+            RETURN(0);
+    }
 }
 
 FUNCTION ProcessRX(STRING received)
 {
-  STRING element_names[2][24], content[128], attributes[128];
-  STRING city[22], state[2];
-  STRING units[4], wind_direction_text[18], tod[8];
-  INTEGER find_pos, wind_direction;
-  INTEGER output_index;
-  
-  output_index = ActiveZipCode;
-  
-  SETARRAY(element_names, "");
-  element_names[0] = "channel";
-  
-  IF(FIND("Error", received))
-  {
-    out_Last_Build[output_index] = "Error";
+    STRING element_names[2][24], content[128], attributes[128];
+    STRING city[22], state[2];
+    STRING units[4], wind_direction_text[18], tod[8];
+    INTEGER find_pos, wind_direction;
+    INTEGER output_index;
     
-    element_names[1] = "item";
-    element_names[2] = "title";
+    output_index = ActiveZipCode;
     
+    SETARRAY(element_names, "");
+    element_names[0] = "channel";
+    
+    IF(FIND("Error", received))
+    {
+        out_Last_Build[output_index] = "Error";
+        
+        element_names[1] = "item";
+        element_names[2] = "title";
+        
+        XMLGetElementData(element_names, 1, received, content, attributes);
+        
+        out_Current_Conditions[output_index]  = content;
+        
+        RETURN;
+    }            
+    
+    // Last Build
+    element_names[1] = "lastBuildDate";
     XMLGetElementData(element_names, 1, received, content, attributes);
     
-    out_Current_Conditions[output_index]  = content;
+    out_Last_Build[output_index] = content;
     
-    RETURN;
-  }            
-  
-  // Last Build
-  element_names[1] = "lastBuildDate";
-  XMLGetElementData(element_names, 1, received, content, attributes);
-  
-  out_Last_Build[output_index] = content;
-  
-  IF(output_index = #LOCAL)
-    LastModified = content;
-  
-  // Location
-  element_names[1] = "yweather:location";
-  XMLGetElementData(element_names, 1, received, content, attributes);
-  
-  city  = XMLGetAttributeData("city", attributes);
-  state = XMLGetAttributeData("region", attributes);
-  
-  out_City[output_index] = city;
-  out_State[output_index] = state;
-  MAKESTRING(Locations[output_index], "%s, %s", city, state);
-  out_Location[output_index] = Locations[output_index];
+    IF(output_index = #LOCAL)
+        LastModified = content;
     
-  // Wind
-  element_names[1] = "yweather:wind";
-  XMLGetElementData(element_names, 1, received, content, attributes);
-  
-  out_Wind_Chill[output_index] = ATOSINew(XMLGetAttributeData("chill", attributes));
-  out_Wind_Speed[output_index] = ATOI(XMLGetAttributeData("speed", attributes));
-  
-  wind_direction = ATOI(XMLGetAttributeData("direction", attributes));
-  
-  // Scale wind direct in degrees to 16 cardinal directions.
-  wind_direction = wind_direction * 16;
-  wind_direction = wind_direction + 180; // Center direction on +/- 11.25 degrees.
-  wind_direction = wind_direction / 360;
-  wind_direction = wind_direction MOD 16 + 1;
-  out_Wind_Direction[output_index] = wind_direction;
-  
-  // Wind Direction
-  SWITCH(out_Wind_Direction[output_index])
-  {
-    CASE(0):
-      wind_direction_text = "Calm";
-    CASE(1):
-      wind_direction_text = "North";
-    CASE(2):
-      wind_direction_text = "North-northeast";
-    CASE(3):
-      wind_direction_text = "Northeast";
-    CASE(4):
-      wind_direction_text = "East-northeast";
-    CASE(5):
-      wind_direction_text = "East";
-    CASE(6):
-      wind_direction_text = "East-southeast";
-    CASE(7):
-      wind_direction_text = "Southeast";
-    CASE(8):
-      wind_direction_text = "South-southeast";
-    CASE(9):
-      wind_direction_text = "South";
-    CASE(10):
-      wind_direction_text = "South-southwest";
-    CASE(11):
-      wind_direction_text = "Southwest";
-    CASE(12):
-      wind_direction_text = "West-southwest";
-    CASE(13):
-      wind_direction_text = "West";
-    CASE(14):
-      wind_direction_text = "West-northwest";
-    CASE(15):
-      wind_direction_text = "Northwest";
-    CASE(16):
-      wind_direction_text = "North-northwest";
-    DEFAULT:
-      wind_direction_text = "Info Unavailable";
-  }
-  
-  out_Wind_Direction_Text[output_index] = wind_direction_text;
-  
-  // Wind Speed
-  IF(param_Units = "f")
-    MAKESTRING(units, "mph");
-  ELSE IF(param_Units = "c")
-    MAKESTRING(units, "km/h");
-  ELSE
-    units = "";
-  
-  MAKESTRING(out_Wind_Speed_Text[output_index], "%u %s", out_Wind_Speed[output_index], units);
-  
-  // Full Wind Text
-  IF(out_Wind_Speed[output_index] = 0)
-    out_Wind_Full_Description[output_index] = "Calm";
-  ELSE
-  {
+    // Location
+    element_names[1] = "yweather:location";
+    XMLGetElementData(element_names, 1, received, content, attributes);
+    
+    city  = XMLGetAttributeData("city", attributes);
+    state = XMLGetAttributeData("region", attributes);
+    
+    out_City[output_index] = city;
+    out_State[output_index] = state;
+    MAKESTRING(Locations[output_index], "%s, %s", city, state);
+    out_Location[output_index] = Locations[output_index];
+        
+    // Wind
+    element_names[1] = "yweather:wind";
+    XMLGetElementData(element_names, 1, received, content, attributes);
+    
+    out_Wind_Chill[output_index] = ATOSINew(XMLGetAttributeData("chill", attributes));
+    out_Wind_Speed[output_index] = ATOI(XMLGetAttributeData("speed", attributes));
+    
+    wind_direction = ATOI(XMLGetAttributeData("direction", attributes));
+    
+    // Scale wind direct in degrees to 16 cardinal directions.
+    wind_direction = wind_direction * 16;
+    wind_direction = wind_direction + 180; // Center direction on +/- 11.25 degrees.
+    wind_direction = wind_direction / 360;
+    wind_direction = wind_direction MOD 16 + 1;
+    out_Wind_Direction[output_index] = wind_direction;
+    
+    // Wind Direction
     SWITCH(out_Wind_Direction[output_index])
     {
-      CASE(1):
-        wind_direction_text = "N";
-      CASE(2):
-        wind_direction_text = "NNE";
-      CASE(3):
-        wind_direction_text = "NE";
-      CASE(4):
-        wind_direction_text = "ENE";
-      CASE(5):
-        wind_direction_text = "E";
-      CASE(6):
-        wind_direction_text = "ESE";
-      CASE(7):
-        wind_direction_text = "SE";
-      CASE(8):
-        wind_direction_text = "SSE";
-      CASE(9):
-        wind_direction_text = "S";
-      CASE(10):
-        wind_direction_text = "SSW";
-      CASE(11):
-        wind_direction_text = "SW";
-      CASE(12):
-        wind_direction_text = "WSW";
-      CASE(13):
-        wind_direction_text = "W";
-      CASE(14):
-        wind_direction_text = "WNW";
-      CASE(15):
-        wind_direction_text = "NW";
-      CASE(16):
-        wind_direction_text = "NNW";
-      DEFAULT:
-        wind_direction_text = "";
+        CASE(0):
+            wind_direction_text = "Calm";
+        CASE(1):
+            wind_direction_text = "North";
+        CASE(2):
+            wind_direction_text = "North-northeast";
+        CASE(3):
+            wind_direction_text = "Northeast";
+        CASE(4):
+            wind_direction_text = "East-northeast";
+        CASE(5):
+            wind_direction_text = "East";
+        CASE(6):
+            wind_direction_text = "East-southeast";
+        CASE(7):
+            wind_direction_text = "Southeast";
+        CASE(8):
+            wind_direction_text = "South-southeast";
+        CASE(9):
+            wind_direction_text = "South";
+        CASE(10):
+            wind_direction_text = "South-southwest";
+        CASE(11):
+            wind_direction_text = "Southwest";
+        CASE(12):
+            wind_direction_text = "West-southwest";
+        CASE(13):
+            wind_direction_text = "West";
+        CASE(14):
+            wind_direction_text = "West-northwest";
+        CASE(15):
+            wind_direction_text = "Northwest";
+        CASE(16):
+            wind_direction_text = "North-northwest";
+        DEFAULT:
+            wind_direction_text = "Info Unavailable";
     }
     
-    MAKESTRING(out_Wind_Full_Description[output_index], "%s %u %s", wind_direction_text, out_Wind_Speed[output_index], units);
-  }
-  
-  // Humidity
-  element_names[1] = "yweather:atmosphere";
-  XMLGetElementData(element_names, 1, received, content, attributes);
-  
-  IF(param_Units = "f")
-    MAKESTRING(units, "in");
-  ELSE IF(param_Units = "c")
-    MAKESTRING(units, "mb");
-  ELSE
-    units = "";
-  
-  MAKESTRING(out_Humidity_Text[output_index], "%u%%", out_Humidity[output_index]);
-  
-  // Pressure
-  out_Humidity[output_index] = ATOI(XMLGetAttributeData("humidity", attributes));
-  out_Pressure[output_index] = ATOI(XMLGetAttributeData("pressure", attributes));
-  
-  IF(param_Units = "f")
-    MAKESTRING(units, "in");
-  ELSE IF(param_Units = "c")
-    MAKESTRING(units, "mb");
-  ELSE
-    units = "";
-  
-  MAKESTRING(out_Pressure_Text[output_index], "%u %s", out_Pressure[output_index], units);
-  
-  // Sunrise & Sunset
-  element_names[1] = "yweather:astronomy";
-  XMLGetElementData(element_names, 1, received, content, attributes);
-  
-  tod = XMLGetAttributeData("sunrise", attributes);
-  out_Sunrise_Text[output_index] = tod;
-  out_Sunrise[output_index] = TIMETOI(tod);
-  
-  tod = XMLGetAttributeData("sunset", attributes);
-  out_Sunset_Text[output_index] = tod;
-  out_Sunset[output_index] = TIMETOI(tod);
-  
-  element_names[1] = "item";
-  
-  // Latitude & Longitude
-  IF(output_index = #LOCAL) // Update latitude and longitude for local location only.
-  {
-    // Latitude
-    element_names[2] = "geo:lat";
+    out_Wind_Direction_Text[output_index] = wind_direction_text;
+    
+    // Wind Speed
+    IF(param_Units = "f")
+        MAKESTRING(units, "mph");
+    ELSE IF(param_Units = "c")
+        MAKESTRING(units, "km/h");
+    ELSE
+        units = "";
+    
+    MAKESTRING(out_Wind_Speed_Text[output_index], "%u %s", out_Wind_Speed[output_index], units);
+    
+    // Full Wind Text
+    IF(out_Wind_Speed[output_index] = 0)
+        out_Wind_Full_Description[output_index] = "Calm";
+    ELSE
+    {
+        SWITCH(out_Wind_Direction[output_index])
+        {
+            CASE(1):
+                wind_direction_text = "N";
+            CASE(2):
+                wind_direction_text = "NNE";
+            CASE(3):
+                wind_direction_text = "NE";
+            CASE(4):
+                wind_direction_text = "ENE";
+            CASE(5):
+                wind_direction_text = "E";
+            CASE(6):
+                wind_direction_text = "ESE";
+            CASE(7):
+                wind_direction_text = "SE";
+            CASE(8):
+                wind_direction_text = "SSE";
+            CASE(9):
+                wind_direction_text = "S";
+            CASE(10):
+                wind_direction_text = "SSW";
+            CASE(11):
+                wind_direction_text = "SW";
+            CASE(12):
+                wind_direction_text = "WSW";
+            CASE(13):
+                wind_direction_text = "W";
+            CASE(14):
+                wind_direction_text = "WNW";
+            CASE(15):
+                wind_direction_text = "NW";
+            CASE(16):
+                wind_direction_text = "NNW";
+            DEFAULT:
+                wind_direction_text = "";
+        }
+        
+        MAKESTRING(out_Wind_Full_Description[output_index], "%s %u %s", wind_direction_text, out_Wind_Speed[output_index], units);
+    }
+    
+    // Humidity
+    element_names[1] = "yweather:atmosphere";
     XMLGetElementData(element_names, 1, received, content, attributes);
     
-    out_Lat_Is_North = !FIND("-", content);
-    out_Lat_Degrees  = ATOI(content);
-    
-    find_pos = FIND(".", content);
-    content = RIGHT(content, LEN(content) - find_pos);
-    
-    IF(LEN(content) = 2)
-      out_Lat_Minutes  = MULDIV(ATOI(content), 60, 100);
-    ELSE IF(LEN(content) = 1)
-      out_Lat_Minutes  = MULDIV(ATOI(content), 60, 10);
+    IF(param_Units = "f")
+        MAKESTRING(units, "in");
+    ELSE IF(param_Units = "c")
+        MAKESTRING(units, "mb");
     ELSE
-      TRACE("weather logic.usp\n    Lat Minutes = '%s'\n", content);
+        units = "";
     
-    // Longitude
-    element_names[2] = "geo:long";
+    MAKESTRING(out_Humidity_Text[output_index], "%u%%", out_Humidity[output_index]);
+    
+    // Pressure
+    out_Humidity[output_index] = ATOI(XMLGetAttributeData("humidity", attributes));
+    out_Pressure[output_index] = ATOI(XMLGetAttributeData("pressure", attributes));
+    
+    IF(param_Units = "f")
+        MAKESTRING(units, "in");
+    ELSE IF(param_Units = "c")
+        MAKESTRING(units, "mb");
+    ELSE
+        units = "";
+    
+    MAKESTRING(out_Pressure_Text[output_index], "%u %s", out_Pressure[output_index], units);
+    
+    // Sunrise & Sunset
+    element_names[1] = "yweather:astronomy";
     XMLGetElementData(element_names, 1, received, content, attributes);
     
-    out_Long_Is_East = !FIND("-", content);
-    out_Long_Degrees = ATOI(content);
+    tod = XMLGetAttributeData("sunrise", attributes);
+    out_Sunrise_Text[output_index] = tod;
+    out_Sunrise[output_index] = TIMETOI(tod);
     
-    find_pos = FIND(".", content);
-    content = RIGHT(content, LEN(content) - find_pos);
+    tod = XMLGetAttributeData("sunset", attributes);
+    out_Sunset_Text[output_index] = tod;
+    out_Sunset[output_index] = TIMETOI(tod);
     
-    IF(LEN(content) = 2)
-      out_Long_Minutes  = MULDIV(ATOI(content), 60, 100);
-    ELSE IF(LEN(content) = 1)
-      out_Long_Minutes  = MULDIV(ATOI(content), 60, 10);
+    element_names[1] = "item";
+    
+    // Latitude & Longitude
+    IF(output_index = #LOCAL) // Update latitude and longitude for local location only.
+    {
+        // Latitude
+        element_names[2] = "geo:lat";
+        XMLGetElementData(element_names, 1, received, content, attributes);
+        
+        out_Lat_Is_North = !FIND("-", content);
+        out_Lat_Degrees  = ATOI(content);
+        
+        find_pos = FIND(".", content);
+        content = RIGHT(content, LEN(content) - find_pos);
+        
+        IF(LEN(content) = 2)
+            out_Lat_Minutes  = MULDIV(ATOI(content), 60, 100);
+        ELSE IF(LEN(content) = 1)
+            out_Lat_Minutes  = MULDIV(ATOI(content), 60, 10);
+        ELSE
+            TRACE("weather logic.usp\n    Lat Minutes = '%s'\n", content);
+        
+        // Longitude
+        element_names[2] = "geo:long";
+        XMLGetElementData(element_names, 1, received, content, attributes);
+        
+        out_Long_Is_East = !FIND("-", content);
+        out_Long_Degrees = ATOI(content);
+        
+        find_pos = FIND(".", content);
+        content = RIGHT(content, LEN(content) - find_pos);
+        
+        IF(LEN(content) = 2)
+            out_Long_Minutes  = MULDIV(ATOI(content), 60, 100);
+        ELSE IF(LEN(content) = 1)
+            out_Long_Minutes  = MULDIV(ATOI(content), 60, 10);
+        ELSE
+            TRACE("weather logic.usp\n    Long Minutes = '%s'\n", content);
+    }
+    
+    // Temperature
+    IF(param_Units = "f")
+        MAKESTRING(units, "%cF", 0xB0);
+    ELSE IF(param_Units = "c")
+        MAKESTRING(units, "%cC", 0xB0);
     ELSE
-      TRACE("weather logic.usp\n    Long Minutes = '%s'\n", content);
-  }
-  
-  // Temperature
-  IF(param_Units = "f")
-    MAKESTRING(units, "%cF", 0xB0);
-  ELSE IF(param_Units = "c")
-    MAKESTRING(units, "%cC", 0xB0);
-  ELSE
-    units = "";
-  
-  // Current Conditions
-  element_names[2] = "yweather:condition";
-  XMLGetElementData(element_names, 1, received, content, attributes);
-  
-  out_Current_Temp[output_index]  = ATOSINew(XMLGetAttributeData("temp", attributes));
-  MAKESTRING(out_Current_Temp_Text[output_index], "%d%s", out_Current_Temp[output_index], units);
+        units = "";
+    
+    // Current Conditions
+    element_names[2] = "yweather:condition";
+    XMLGetElementData(element_names, 1, received, content, attributes);
+    
+    out_Current_Temp[output_index]  = ATOSINew(XMLGetAttributeData("temp", attributes));
+    MAKESTRING(out_Current_Temp_Text[output_index], "%d%s", out_Current_Temp[output_index], units);
 
-  out_Current_Conditions[output_index]  = XMLGetAttributeData("text", attributes);
-  out_Current_Image[output_index] = GetImage(ATOI(XMLGetAttributeData("code", attributes)));
-  
-  MAKESTRING(out_Wind_Chill_Text[output_index], "%d%s", out_Wind_Chill[output_index], units);
-  
-  // Today's Forecast
-  element_names[2] = "yweather:forecast";
-  XMLGetElementData(element_names, 1, received, content, attributes);
-  
-  out_Today_High[output_index]     = ATOSINew(XMLGetAttributeData("high", attributes));
-  MAKESTRING(out_Today_High_Text[output_index], "%d%s", out_Today_High[output_index], units);
-  
-  out_Today_Low[output_index]      = ATOSINew(XMLGetAttributeData("low", attributes));
-  MAKESTRING(out_Today_Low_Text[output_index], "%d%s", out_Today_Low[output_index], units);
-  
-  out_Today_Forecast[output_index] = XMLGetAttributeData("text", attributes);
-  out_Today_Image[output_index]    = GetImage(ATOI(XMLGetAttributeData("code", attributes)));
-  
-  // Tomorrow's Forecast
-  element_names[2] = "yweather:forecast";
-  XMLGetElementData(element_names, 2, received, content, attributes);
-  
-  out_Tomorrow_High[output_index]     = ATOSINew(XMLGetAttributeData("high", attributes));
-  MAKESTRING(out_Tomorrow_High_Text[output_index], "%d%s", out_Tomorrow_High[output_index], units);
-  
-  out_Tomorrow_Low[output_index]      = ATOSINew(XMLGetAttributeData("low", attributes));
-  MAKESTRING(out_Tomorrow_Low_Text[output_index], "%d%s", out_Tomorrow_Low[output_index], units);
-  
-  out_Tomorrow_Forecast[output_index] = XMLGetAttributeData("text", attributes);
-  out_Tomorrow_Image[output_index]    = GetImage(ATOI(XMLGetAttributeData("code", attributes)));
+    out_Current_Conditions[output_index]  = XMLGetAttributeData("text", attributes);
+    out_Current_Image[output_index] = GetImage(ATOI(XMLGetAttributeData("code", attributes)));
+    
+    MAKESTRING(out_Wind_Chill_Text[output_index], "%d%s", out_Wind_Chill[output_index], units);
+    
+    // Today's Forecast
+    element_names[2] = "yweather:forecast";
+    XMLGetElementData(element_names, 1, received, content, attributes);
+    
+    out_Today_High[output_index]     = ATOSINew(XMLGetAttributeData("high", attributes));
+    MAKESTRING(out_Today_High_Text[output_index], "%d%s", out_Today_High[output_index], units);
+    
+    out_Today_Low[output_index]      = ATOSINew(XMLGetAttributeData("low", attributes));
+    MAKESTRING(out_Today_Low_Text[output_index], "%d%s", out_Today_Low[output_index], units);
+    
+    out_Today_Forecast[output_index] = XMLGetAttributeData("text", attributes);
+    out_Today_Image[output_index]    = GetImage(ATOI(XMLGetAttributeData("code", attributes)));
+    
+    // Tomorrow's Forecast
+    element_names[2] = "yweather:forecast";
+    XMLGetElementData(element_names, 2, received, content, attributes);
+    
+    out_Tomorrow_High[output_index]     = ATOSINew(XMLGetAttributeData("high", attributes));
+    MAKESTRING(out_Tomorrow_High_Text[output_index], "%d%s", out_Tomorrow_High[output_index], units);
+    
+    out_Tomorrow_Low[output_index]      = ATOSINew(XMLGetAttributeData("low", attributes));
+    MAKESTRING(out_Tomorrow_Low_Text[output_index], "%d%s", out_Tomorrow_Low[output_index], units);
+    
+    out_Tomorrow_Forecast[output_index] = XMLGetAttributeData("text", attributes);
+    out_Tomorrow_Image[output_index]    = GetImage(ATOI(XMLGetAttributeData("code", attributes)));
 }
 
 CHANGE in_TCP_RX$
 {
-  STRING received[#WEATHER_LEN];
-  
-  received = GATHER("</rss>", in_TCP_RX$);
-  
-  ProcessRX(received);
-  
-  IF(ActiveZipCode = #LOCAL)
-  {
-    ActiveZipCode = #DYNAMIC;
+    STRING received[#WEATHER_LEN];
     
-    ConnectToServer(0);
-  }
+    received = GATHER("</rss>", in_TCP_RX$);
+    
+    ProcessRX(received);
+    
+    IF(ActiveZipCode = #LOCAL)
+    {
+        ActiveZipCode = #DYNAMIC;
+        
+        ConnectToServer(0);
+    }
 }
 
 
 // Runtime
 FUNCTION Main()
 {
-  SIGNED_INTEGER return_error;
-  INTEGER i; // iterator
-  
-  return_error = WAITFORINITIALIZATIONCOMPLETE();
-  
-  IF(return_error < 0)
-  {
-    TRACE("ERROR in %s 'weather logic.usp': WAITFORINITALIZATIONCOMPLETE() = %d", GETSYMBOLINSTANCENAME(), return_error);
-  }
-  
-  ActiveZipCode  = #LOCAL;
-  DynamicZipCode = PresetZipCodes[1];
-  
-  FOR(i = 1 TO #MAX_PRESETS)
-  {
-    out_Preset_Location[i] = PresetLocations[i];
-    out_Preset_ZIP_Code[i] = PresetZipCodes[i];
-  }
+    SIGNED_INTEGER return_error;
+    INTEGER i; // iterator
+    
+    return_error = WAITFORINITIALIZATIONCOMPLETE();
+    
+    IF(return_error < 0)
+    {
+        TRACE("ERROR in %s 'weather logic.usp': WAITFORINITALIZATIONCOMPLETE() = %d", GETSYMBOLINSTANCENAME(), return_error);
+    }
+    
+    ActiveZipCode  = #LOCAL;
+    DynamicZipCode = PresetZipCodes[1];
+    
+    FOR(i = 1 TO #MAX_PRESETS)
+    {
+        out_Preset_Location[i] = PresetLocations[i];
+        out_Preset_ZIP_Code[i] = PresetZipCodes[i];
+    }
 }
