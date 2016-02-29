@@ -4,7 +4,7 @@ Version=1
 [
 ObjTp=FSgntr
 Sgntr=SimplWindow
-RelVrs=4.02.38
+RelVrs=4.03.20
 IntStrVrs=2
 MinSMWVrs=3.00.00
 MinTIOVrs=206
@@ -18,12 +18,12 @@ S0Nd=1
 S1Nd=2
 SLNd=3
 PrNm=Adelyte Weather Demo.smw
-DbVr=44.00.002.00
-DvcDbVr=54.05.004.00
+DbVr=54.05.005.00
+DvcDbVr=72.00.001.00
 PgmNm=Adelyte Company
 CltNm=Adelyte Yahoo! Weather Demo
-SmVr=888
-DvVr=888
+SmVr=982
+DvVr=982
 TpN1=1
 TpN2=2
 TpN3=3
@@ -1414,7 +1414,7 @@ ObjVer=1
 SlC=24
 Ad=A
 SmH=41
-RelStat=Release
+RelStat=Discontinued
 ProdLine=General Purpose IO
 CmH=1
 ]
@@ -1440,7 +1440,7 @@ ObjVer=1
 SlC=24
 Ad=B
 SmH=42
-RelStat=Release
+RelStat=Discontinued
 ProdLine=General Purpose IO
 CmH=2
 ]
@@ -1481,7 +1481,7 @@ ObjVer=1
 SlC=24
 Ad=A
 SmH=44
-RelStat=Release
+RelStat=Discontinued
 ProdLine=General Purpose IO
 CmH=3
 ]
@@ -1507,7 +1507,7 @@ ObjVer=1
 SlC=24
 Ad=B
 SmH=45
-RelStat=Release
+RelStat=Discontinued
 ProdLine=General Purpose IO
 CmH=4
 ]
@@ -1706,20 +1706,6 @@ Nm1=\
 Sx1=0
 Sy1=0
 Mx1=0
-]
-[
-ObjTp=Bw
-H=1
-Lx=0
-Ly=0
-Rx=1450
-Ry=1035
-Xm=-1
-Ym=-1
-SH=23
-Z=100
-Ht=1
-Hi=1
 ]
 [
 ObjTp=Et
@@ -2585,42 +2571,10 @@ PrH=4
 CF=2
 Cmn1=Time\\
 mC=4
-C1=31
+C1=49
 C2=32
 C3=33
 C4=34
-]
-[
-ObjTp=Sm
-H=31
-SmC=103
-Nm=Time.usp
-ObjVer=1
-PrH=30
-CF=2
-n1I=2
-n2I=2
-n1O=2
-mI=4
-I1=13
-I2=11
-I3=16
-I4=17
-mO=9
-tO=9
-O1=60
-O2=18
-O3=23
-O4=5
-O5=15
-O6=19
-O7=21
-O8=49
-O9=83
-mP=3
-P1=
-P2=1d
-P3=2d
 ]
 [
 ObjTp=Sm
@@ -2899,6 +2853,7 @@ PrH=7
 CF=2
 n1I=2
 n1O=1
+OpF=0
 Cmn1=Time
 mI=4
 I1=18
@@ -3072,6 +3027,30 @@ O41=112
 O42=113
 ]
 [
+ObjTp=Sm
+H=49
+SmC=103
+Nm=TimeDate.usp
+ObjVer=1
+PrH=30
+CF=2
+n1O=1
+mO=7
+tO=7
+O1=60
+O2=5
+O3=15
+O4=19
+O5=21
+O6=86
+O7=49
+mP=3
+P1=
+P2=1d
+P3=2d
+Plb3=MMMM D, YYYY
+]
+[
 ObjTp=Sg
 H=4
 Nm=//TSTAT00>_outdoor_temperature
@@ -3110,11 +3089,6 @@ ObjTp=Sg
 H=10
 Nm=WEATHER>_tcp_tx$
 SgTp=4
-]
-[
-ObjTp=Sg
-H=11
-Nm=//TIME>_refresh
 ]
 [
 ObjTp=Sg
@@ -3176,12 +3150,6 @@ ObjTp=Sg
 H=22
 Nm=//WEATHER>_latitude_minutes
 SgTp=2
-]
-[
-ObjTp=Sg
-H=23
-Nm=//__analog_reserved__
-SgTp=31
 ]
 [
 ObjTp=Sg
