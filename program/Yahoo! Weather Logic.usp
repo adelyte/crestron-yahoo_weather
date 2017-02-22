@@ -10,6 +10,7 @@
 #CATEGORY "8" // Media Resource
 #DEFAULT_VOLATILE
 #ENABLE_DYNAMIC // Dynamic arrays are NOT used, but supposedly this directive improves memory allocation.
+#ENABLE_TRACE
 
 // Help
 #HELP_BEGIN
@@ -31,8 +32,8 @@ Authors:
 #DEFINE_CONSTANT #LOCAL   1
 #DEFINE_CONSTANT #DYNAMIC 2
 
-#DEFINE_CONSTANT #WEATHER_LEN  4096
-#DEFINE_CONSTANT #BUFFER_LEN   8192 // #WEATHER_LEN * 2
+#DEFINE_CONSTANT #WEATHER_LEN  5000
+#DEFINE_CONSTANT #BUFFER_LEN   10000 // #WEATHER_LEN * 2
 #DEFINE_CONSTANT #LOCATION_LEN   26 // LEN("Rancho Santa Margarita, CA")
 #DEFINE_CONSTANT #ZIP_CODE_LEN    5
 
@@ -174,7 +175,7 @@ FUNCTION XMLFindElement(STRING element_names[], BYREF INTEGER breadth, STRING xm
             BREAK;
         }
     }
-
+    
     deepest_element = deepest_element - 1;
 
     FOR(depth = 0 TO deepest_element)
@@ -397,6 +398,8 @@ FUNCTION ConnectToServer(INTEGER wait_time)
 CHANGE in_TCP_Status
 {
     STRING zip_code[#ZIP_CODE_LEN];
+	//STRING txString[248];
+
     
     IF(ActiveZipCode = #LOCAL)
         zip_code = param_Local_ZIP_Code;
@@ -422,10 +425,10 @@ CHANGE in_TCP_Status
     ELSE IF(in_TCP_Status = 2) // TCP connection succeeded, request weather data.
     {
         CLEARBUFFER(in_TCP_RX$);
-        
-        MAKESTRING(out_TCP_TX$, "GET /forecastrss?p=%s&u=%s HTTP/1.1\nHost: weather.yahooapis.com\n\n", zip_code, param_Units); // The feed does not provide a Last-Modified header field and seems to ignore the If-Modified-Since header field.
+		// http://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20weather.forecast%20where%20woeid%20in%20(select%20woeid%20from%20geo.places(1)%20where%20text%3D%2736830%27)%20and%20u=%27f%27&format=xml
+ 		MAKESTRING(out_TCP_TX$, "GET /v1/public/yql?q=select%%20*%%20from%%20weather.forecast%%20where%%20woeid%%20in%%20(select%%20woeid%%20from%%20geo.places(1)%%20where%%20text='%s')%%20and%%20u='%s'&format=xml HTTP/1.1\nHost:query.yahooapis.com\n\n", zip_code, param_Units); // The feed does not provide a Last-Modified header field and seems to ignore the If-Modified-Since header field.
     }
-    ELSE
+	ELSE
     {
         // Pass
     }
@@ -676,7 +679,7 @@ INTEGER_FUNCTION GetImage(INTEGER condition)
 
 FUNCTION ProcessRX(STRING received)
 {
-    STRING element_names[2][24], content[128], attributes[128];
+    STRING element_names[3][24], content[128], attributes[128];
     STRING city[22], state[2];
     STRING units[4], wind_direction_text[18], tod[8];
     INTEGER find_pos, wind_direction;
@@ -685,14 +688,15 @@ FUNCTION ProcessRX(STRING received)
     output_index = ActiveZipCode;
     
     SETARRAY(element_names, "");
-    element_names[0] = "channel";
+    element_names[0] = "results";
+    element_names[1] = "channel";
     
     IF(FIND("Error", received))
     {
         out_Last_Build[output_index] = "Error";
         
-        element_names[1] = "item";
-        element_names[2] = "title";
+        element_names[2] = "item";
+        element_names[3] = "title";
         
         XMLGetElementData(element_names, 1, received, content, attributes);
         
@@ -702,7 +706,7 @@ FUNCTION ProcessRX(STRING received)
     }            
     
     // Last Build
-    element_names[1] = "lastBuildDate";
+    element_names[2] = "lastBuildDate";
     XMLGetElementData(element_names, 1, received, content, attributes);
     
     out_Last_Build[output_index] = content;
@@ -711,7 +715,7 @@ FUNCTION ProcessRX(STRING received)
         LastModified = content;
     
     // Location
-    element_names[1] = "yweather:location";
+    element_names[2] = "yweather:location";
     XMLGetElementData(element_names, 1, received, content, attributes);
     
     city  = XMLGetAttributeData("city", attributes);
@@ -723,7 +727,7 @@ FUNCTION ProcessRX(STRING received)
     out_Location[output_index] = Locations[output_index];
         
     // Wind
-    element_names[1] = "yweather:wind";
+    element_names[2] = "yweather:wind";
     XMLGetElementData(element_names, 1, received, content, attributes);
     
     out_Wind_Chill[output_index] = ATOSINew(XMLGetAttributeData("chill", attributes));
@@ -838,7 +842,7 @@ FUNCTION ProcessRX(STRING received)
     }
     
     // Humidity
-    element_names[1] = "yweather:atmosphere";
+    element_names[2] = "yweather:atmosphere";
     XMLGetElementData(element_names, 1, received, content, attributes);
     
     IF(param_Units = "f")
@@ -864,7 +868,7 @@ FUNCTION ProcessRX(STRING received)
     MAKESTRING(out_Pressure_Text[output_index], "%u %s", out_Pressure[output_index], units);
     
     // Sunrise & Sunset
-    element_names[1] = "yweather:astronomy";
+    element_names[2] = "yweather:astronomy";
     XMLGetElementData(element_names, 1, received, content, attributes);
     
     tod = XMLGetAttributeData("sunrise", attributes);
@@ -875,13 +879,13 @@ FUNCTION ProcessRX(STRING received)
     out_Sunset_Text[output_index] = tod;
     out_Sunset[output_index] = TIMETOI(tod);
     
-    element_names[1] = "item";
+    element_names[2] = "item";
     
     // Latitude & Longitude
     IF(output_index = #LOCAL) // Update latitude and longitude for local location only.
     {
         // Latitude
-        element_names[2] = "geo:lat";
+        element_names[3] = "geo:lat";
         XMLGetElementData(element_names, 1, received, content, attributes);
         
         out_Lat_Is_North = !FIND("-", content);
@@ -898,7 +902,7 @@ FUNCTION ProcessRX(STRING received)
             TRACE("weather logic.usp\n    Lat Minutes = '%s'\n", content);
         
         // Longitude
-        element_names[2] = "geo:long";
+        element_names[3] = "geo:long";
         XMLGetElementData(element_names, 1, received, content, attributes);
         
         out_Long_Is_East = !FIND("-", content);
@@ -924,7 +928,7 @@ FUNCTION ProcessRX(STRING received)
         units = "";
     
     // Current Conditions
-    element_names[2] = "yweather:condition";
+    element_names[3] = "yweather:condition";
     XMLGetElementData(element_names, 1, received, content, attributes);
     
     out_Current_Temp[output_index]  = ATOSINew(XMLGetAttributeData("temp", attributes));
@@ -936,7 +940,7 @@ FUNCTION ProcessRX(STRING received)
     MAKESTRING(out_Wind_Chill_Text[output_index], "%d%s", out_Wind_Chill[output_index], units);
     
     // Today's Forecast
-    element_names[2] = "yweather:forecast";
+    element_names[3] = "yweather:forecast";
     XMLGetElementData(element_names, 1, received, content, attributes);
     
     out_Today_High[output_index]     = ATOSINew(XMLGetAttributeData("high", attributes));
@@ -949,7 +953,7 @@ FUNCTION ProcessRX(STRING received)
     out_Today_Image[output_index]    = GetImage(ATOI(XMLGetAttributeData("code", attributes)));
     
     // Tomorrow's Forecast
-    element_names[2] = "yweather:forecast";
+    element_names[3] = "yweather:forecast";
     XMLGetElementData(element_names, 2, received, content, attributes);
     
     out_Tomorrow_High[output_index]     = ATOSINew(XMLGetAttributeData("high", attributes));
@@ -966,7 +970,7 @@ CHANGE in_TCP_RX$
 {
     STRING received[#WEATHER_LEN];
     
-    received = GATHER("</rss>", in_TCP_RX$);
+    received = GATHER("</query>", in_TCP_RX$);
     
     ProcessRX(received);
     
