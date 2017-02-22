@@ -680,7 +680,7 @@ INTEGER_FUNCTION GetImage(INTEGER condition)
 FUNCTION ProcessRX(STRING received)
 {
     STRING element_names[3][24], content[128], attributes[128];
-    STRING city[22], state[2];
+    STRING city[22], state[3];
     STRING units[4], wind_direction_text[18], tod[8];
     INTEGER find_pos, wind_direction;
     INTEGER output_index;
@@ -722,7 +722,7 @@ FUNCTION ProcessRX(STRING received)
     state = XMLGetAttributeData("region", attributes);
     
     out_City[output_index] = city;
-    out_State[output_index] = state;
+    out_State[output_index] = RIGHT(state, 2);
     MAKESTRING(Locations[output_index], "%s, %s", city, state);
     out_Location[output_index] = Locations[output_index];
         
