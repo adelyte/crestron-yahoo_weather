@@ -145,8 +145,8 @@ INTEGER_FUNCTION XMLRootEndTagFound(STRING xml_feed)
     IF(end_pos - start_pos < LEN(xml_feed))
         root_element = MID(xml_feed, start_pos, end_pos - start_pos + 1);
 
-    TRACE("WaitForXMLRootClose()\n");
-    TRACE("    root_element = '%s'", root_element);
+    PRINT("WaitForXMLRootClose()\n");
+    PRINT("    root_element = '%s'", root_element);
 
     MAKESTRING(root_element, "</%s>", root_element);
 
@@ -309,7 +309,7 @@ FUNCTION XMLGetElementData(STRING element_names[], INTEGER breadth, STRING xml_f
     end_pos = element_end;
 
     content = MID(xml_feed, start_pos, end_pos - start_pos);
-    TRACE("XMLGetElementData() content: '%s'", content);
+    PRINT("XMLGetElementData() content: '%s'", content);
 }
 
 /*
@@ -408,7 +408,7 @@ CHANGE in_TCP_Status
     
     IF(in_TCP_Status = 3) // TCP connection failed, wait one minute and retry.
     {
-        TRACE("ERROR in %s 'weather logic.usp': TCP Connection Failed", GETSYMBOLINSTANCENAME());
+        PRINT("ERROR in %s 'weather logic.usp': TCP Connection Failed", GETSYMBOLINSTANCENAME());
         
         ConnectToServer(6000);
     }
@@ -418,14 +418,13 @@ CHANGE in_TCP_Status
     }
     ELSE IF(in_TCP_Status = 7) // DNS lookup failed, wait one minute and retry.
     {
-        TRACE("ERROR in %s 'weather logic.usp': DNS Lookup Failed", GETSYMBOLINSTANCENAME());
+        PRINT("ERROR in %s 'weather logic.usp': DNS Lookup Failed", GETSYMBOLINSTANCENAME());
         
         ConnectToServer(6000);
     }
     ELSE IF(in_TCP_Status = 2) // TCP connection succeeded, request weather data.
     {
         CLEARBUFFER(in_TCP_RX$);
-		// http://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20weather.forecast%20where%20woeid%20in%20(select%20woeid%20from%20geo.places(1)%20where%20text%3D%2736830%27)%20and%20u=%27f%27&format=xml
  		MAKESTRING(out_TCP_TX$, "GET /v1/public/yql?q=select%%20*%%20from%%20weather.forecast%%20where%%20woeid%%20in%%20(select%%20woeid%%20from%%20geo.places(1)%%20where%%20text='%s')%%20and%%20u='%s'&format=xml HTTP/1.1\nHost:query.yahooapis.com\n\n", zip_code, param_Units); // The feed does not provide a Last-Modified header field and seems to ignore the If-Modified-Since header field.
     }
 	ELSE
@@ -502,7 +501,7 @@ PUSH in_Preset
     }
     ELSE
     {
-        TRACE("ERROR in %s 'weather logic.usp': Multiple Simultaneous Presets", GETSYMBOLINSTANCENAME());
+        PRINT("ERROR in %s 'weather logic.usp': Multiple Simultaneous Presets", GETSYMBOLINSTANCENAME());
     }
 }
 
@@ -679,7 +678,7 @@ INTEGER_FUNCTION GetImage(INTEGER condition)
 
 FUNCTION ProcessRX(STRING received)
 {
-    STRING element_names[3][24], content[128], attributes[128];
+    STRING element_names[3][24], content[255], attributes[255];
     STRING city[22], state[3];
     STRING units[4], wind_direction_text[18], tod[8];
     INTEGER find_pos, wind_direction;
@@ -701,6 +700,8 @@ FUNCTION ProcessRX(STRING received)
         XMLGetElementData(element_names, 1, received, content, attributes);
         
         out_Current_Conditions[output_index]  = content;
+
+		PRINT("Error Found"); //FINDME
         
         RETURN;
     }            
@@ -899,7 +900,7 @@ FUNCTION ProcessRX(STRING received)
         ELSE IF(LEN(content) = 1)
             out_Lat_Minutes  = MULDIV(ATOI(content), 60, 10);
         ELSE
-            TRACE("weather logic.usp\n    Lat Minutes = '%s'\n", content);
+            PRINT("weather logic.usp\n    Lat Minutes = '%s'\n", content);
         
         // Longitude
         element_names[3] = "geo:long";
@@ -916,7 +917,7 @@ FUNCTION ProcessRX(STRING received)
         ELSE IF(LEN(content) = 1)
             out_Long_Minutes  = MULDIV(ATOI(content), 60, 10);
         ELSE
-            TRACE("weather logic.usp\n    Long Minutes = '%s'\n", content);
+            PRINT("weather logic.usp\n    Long Minutes = '%s'\n", content);
     }
     
     // Temperature
@@ -929,6 +930,8 @@ FUNCTION ProcessRX(STRING received)
     
     // Current Conditions
     element_names[3] = "yweather:condition";
+
+	PRINT("Current Conditions: %s - %s - %s", received, content, attributes); //FINDME
     XMLGetElementData(element_names, 1, received, content, attributes);
     
     out_Current_Temp[output_index]  = ATOSINew(XMLGetAttributeData("temp", attributes));
@@ -971,6 +974,8 @@ CHANGE in_TCP_RX$
     STRING received[#WEATHER_LEN];
     
     received = GATHER("</query>", in_TCP_RX$);
+
+	PRINT("%s", received); //FINDME
     
     ProcessRX(received);
     
@@ -993,7 +998,7 @@ FUNCTION Main()
     
     IF(return_error < 0)
     {
-        TRACE("ERROR in %s 'weather logic.usp': WAITFORINITALIZATIONCOMPLETE() = %d", GETSYMBOLINSTANCENAME(), return_error);
+        PRINT("ERROR in %s 'weather logic.usp': WAITFORINITALIZATIONCOMPLETE() = %d", GETSYMBOLINSTANCENAME(), return_error);
     }
     
     ActiveZipCode  = #LOCAL;
